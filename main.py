@@ -1,7 +1,7 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from fogbugz import FogBugz
-from s import getcolumns, getapikey, getpath, getday0
+from s import getcolumns, getapikey, getpath, getday0, getoldestcasesnoupdate, getprofilter
 from datetime import datetime
 import time
 
@@ -23,21 +23,18 @@ def initgooglesheets():
 
 
 def getcaseslist(fb, query):
-    print("Started getting data...")
+    print("Started gathering data...")
     start = time.time()
     resultXML = fb.search(q=query, cols=getcolumns())
     end = time.time()
-    print('Finished getting data. Time spent:')
-    print(end - start)
+    print('Finished gathering data. Time spent: ' + str(end-start))
 
     resultXMLList = list(resultXML.cases.childGenerator())
     resultListOfCases = list()
-    print('Transforming XML to list of objects')
     for c in resultXMLList:
         caseObject = FogbugzCase(c.ixBug.string, c.sTitle.string, c.sPersonAssignedTo.string, c.sStatus.string,
                                  datetime.strptime(c.dtLastUpdated.string, CONST_DATE_FORMAT))
         resultListOfCases.append(caseObject)
-    print('List successfully created')
 
     resultListOfCases.sort(key=lambda r: r.lastUpdated)
 
@@ -45,7 +42,7 @@ def getcaseslist(fb, query):
 
 
 def writeoldestcases(sheet, listOfCases, row, col):
-    print('Adding data to Sheets: 5 oldest cases in Day0')
+    print('Adding data to Sheets: 5 oldest cases')
     i = 0
     for c in listOfCases:
         if i > 4:
@@ -58,23 +55,45 @@ def writeoldestcases(sheet, listOfCases, row, col):
         i = i + 1
 
 
-def writeday0count(firstTimeWriting, sheet, dateOfData, value, row, col, goal):
-    print('Adding data to Sheets: Day0 count')
+def writefiltercount(firstTimeWriting, sheet, dateOfData, value, row, col, goal):
+    print('Adding data to Sheets: Case count')
     if not firstTimeWriting:
-        dateOfLastDataString = sheet.cell(row + 7, col).value
+        dateOfLastDataString = sheet.cell(row, col).value
         dateOfLastData = datetime.strptime(dateOfLastDataString, FORMAT_OF_DATE)
         if dateOfData.date() != dateOfLastData.date():
             appendrowfordata(sheet)
-    sheet.update_cell(row + 7, col, dateOfData.strftime(FORMAT_OF_DATE))
-    sheet.update_cell(row + 7, col + 1, value)
-    sheet.update_cell(row + 7, col + 2, str(goal))
+    sheet.update_cell(row, col, dateOfData.strftime(FORMAT_OF_DATE))
+    sheet.update_cell(row, col + 1, value)
+    sheet.update_cell(row, col + 2, str(goal))
 
 
 def writeday0age(sheet, oldestCaseDate, row, col, goal):
     print('Adding data to Sheets: Day0 oldest case age')
     oldestCaseAge = (datetime.now() - oldestCaseDate).days
-    sheet.update_cell(row + 7, col + 4, str(oldestCaseAge))
-    sheet.update_cell(row + 7, col + 5, str(goal))
+    sheet.update_cell(row, col + 4, str(oldestCaseAge))
+    sheet.update_cell(row, col + 5, str(goal))
+
+
+def writeoldestcases(sheet, listOfCases, row, col):
+    print('Adding data to Sheets: Oldest cases without an update')
+    i = 0
+    for c in listOfCases:
+        if i > 4:
+            break
+        sheet.update_cell(row + i, col, c.bugId)
+        sheet.update_cell(row + i, col + 1, c.title)
+        sheet.update_cell(row + i, col + 2, c.personAssignedTo)
+        sheet.update_cell(row + i, col + 3, c.status)
+        sheet.update_cell(row + i, col + 4, c.lastUpdated.strftime(FORMAT_OF_DATE))
+        i = i + 1
+
+
+def writeoldestcasenoupdateage(sheet, oldestCaseDate, row, col, goal):
+    print('Adding data to Sheets: Oldest cases without update age')
+    oldestCaseAge = (datetime.now() - oldestCaseDate).days
+    sheet.update_cell(row, col, datetime.now().strftime(FORMAT_OF_DATE))
+    sheet.update_cell(row, col + 1, str(oldestCaseAge))
+    sheet.update_cell(row, col + 2, str(goal))
 
 
 def appendrowfordata(sheet):
@@ -87,6 +106,7 @@ def main():
     # Fogbugz stuff
     fb = FogBugz(getpath(), getapikey(), api_version=8)
 
+    # ----------------------------------------------------------------------------------------------------------
     # Getting Day0
     print('Query set to day0')
     query = getday0()
@@ -98,14 +118,42 @@ def main():
 
     # Calling all the information gathering functions
     writeoldestcases(sheets, resultListOfCases, 3, 1)
-    writeday0count(firstTimeWriting, sheets, datetime.now(), listLength, 3, 1, 500)
-    writeday0age(sheets, oldestCaseDate, 3, 1, 7)
+    writefiltercount(firstTimeWriting, sheets, datetime.now(), listLength, 10, 1, 500)
+    writeday0age(sheets, oldestCaseDate, 10, 1, 7)
     print('Day 0 query finished')
+    # ----------------------------------------------------------------------------------------------------------
 
-    # Continuing with workers
-    print('Query set to null')
+    # ----------------------------------------------------------------------------------------------------------
+    # Continuing non day0 queues
+    #-----------------------------------------------------------------------------------------------------------
+    # Getting oldest cases assigned to us without update
+    print('Query set to oldest case without update')
+    query = getoldestcasesnoupdate()
+    resultListOfCases = getcaseslist(fb, query)
+    oldestCaseDate = resultListOfCases[0].lastUpdated
 
-    print('Null query finished')
+    # Calling all the information gathering functions
+    writeoldestcases(sheets, resultListOfCases, 3, 8)
+    writeoldestcasenoupdateage(sheets, oldestCaseDate, 10, 8, 10)
+    print('Oldest cases without an update query finished')
+    # ----------------------------------------------------------------------------------------------------------
+
+    # ----------------------------------------------------------------------------------------------------------
+    # Getting pro filter cases
+    print('Query set to pro filter')
+    query = getprofilter()
+    resultListOfCases = getcaseslist(fb, query)
+    listLength = str(len(resultListOfCases))
+
+    # Calling all the information gathering functions
+    writeoldestcases(sheets, resultListOfCases, 3, 15)
+    writefiltercount(True, sheets, datetime.now(), listLength, 10, 15, 0)
+    print('Pro filter query finished')
+    # ----------------------------------------------------------------------------------------------------------
+
+    # ----------------------------------------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------------------------------------
 
     print('Data writing to Sheets finished')
     print("Good to go")
@@ -113,8 +161,8 @@ def main():
 
 CONST_DATE_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 FORMAT_OF_DATE = '%Y-%m-%d %H:%M:%S'
+dataRowStartIndex = 10
 
-dataRowStartIndex = 8
 main()
 
 
