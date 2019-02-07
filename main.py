@@ -1,7 +1,7 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from fogbugz import FogBugz
-from s import getcolumns, getapikey, getpath, getday0, getoldestcasesnoupdate, getprofilter
+from s import getcolumns, getapikey, getpath, getday0, getoldestcasesnoupdate, getprofilter, getoldestresolvedcases
 from datetime import datetime
 import time
 
@@ -125,7 +125,7 @@ def main():
 
     # ----------------------------------------------------------------------------------------------------------
     # Continuing non day0 queues
-    #-----------------------------------------------------------------------------------------------------------
+    # -----------------------------------------------------------------------------------------------------------
     # Getting oldest cases assigned to us without update
     print('Query set to oldest case without update')
     query = getoldestcasesnoupdate()
@@ -150,7 +150,16 @@ def main():
     writefiltercount(True, sheets, datetime.now(), listLength, 10, 15, 0)
     print('Pro filter query finished')
     # ----------------------------------------------------------------------------------------------------------
+    # Getting oldest resolved cases assigned to us
+    print('Query set to oldest cases resolved and assigned to us')
+    query = getoldestresolvedcases()
+    resultListOfCases = getcaseslist(fb, query)
+    oldestCaseDate = resultListOfCases[0].lastUpdated
 
+    # Calling all the information gathering functions
+    writeoldestcases(sheets, resultListOfCases, 3, 22)
+    writeoldestcasenoupdateage(sheets, oldestCaseDate, 10, 22, 30)
+    print('Oldest resolved cases without an update query finished')
     # ----------------------------------------------------------------------------------------------------------
     # ----------------------------------------------------------------------------------------------------------
     # ----------------------------------------------------------------------------------------------------------
