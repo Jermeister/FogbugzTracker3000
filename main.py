@@ -1,7 +1,8 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from fogbugz import FogBugz
-from s import getcolumns, getapikey, getpath, getday0, getoldestcasesnoupdate, getprofilter, getoldestresolvedcases
+from s import getcolumns, getapikey, getpath, getday0, getoldestcasesnoupdate, getprofilter, getoldestresolvedcases,\
+    getQueryForKaunasCrashes, getQueryForKaunasNonCrashes, getQueryForNorthCrashes, getQueryForNorthNonCrashes, getQueryForSouthCrashes, getQueryForSouthNonCrashes
 from datetime import datetime
 import time
 
@@ -18,7 +19,7 @@ def initgooglesheets():
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     creds = ServiceAccountCredentials.from_json_keyfile_name('client_secret.json', scope)
     client = gspread.authorize(creds)
-    sheet = client.open("General Kaunas Stats").get_worksheet(1)
+    sheet = client.open("General Kaunas People Stats").get_worksheet(1)
     return sheet
 
 
@@ -95,12 +96,48 @@ def writeoldestcasenoupdateage(sheet, oldestCaseDate, row, col, goal):
     sheet.update_cell(row, col + 1, str(oldestCaseAge))
     sheet.update_cell(row, col + 2, str(goal))
 
+def writecrashnoncrashteams(sheet, fb, row, col):
+    print('Adding data to Sheets: Teams race')
+    query = getQueryForKaunasNonCrashes()
+    resultListOfCases = getcaseslist(fb, query)
+    listLength = str(len(resultListOfCases))
+    sheet.update_cell(row, col, str(listLength))
+
+    query = getQueryForKaunasCrashes()
+    resultListOfCases = getcaseslist(fb, query)
+    listLength = str(len(resultListOfCases))
+    sheet.update_cell(row, col+1, str(listLength))
+
+    query = getQueryForSouthNonCrashes()
+    resultListOfCases = getcaseslist(fb, query)
+    listLength = str(len(resultListOfCases))
+    sheet.update_cell(row+1, col, str(listLength))
+
+    query = getQueryForSouthCrashes()
+    resultListOfCases = getcaseslist(fb, query)
+    listLength = str(len(resultListOfCases))
+    sheet.update_cell(row+1, col+1, str(listLength))
+
+    query = getQueryForNorthNonCrashes()
+    resultListOfCases = getcaseslist(fb, query)
+    listLength = str(len(resultListOfCases))
+    sheet.update_cell(row+2, col, str(listLength))
+
+    query = getQueryForNorthCrashes()
+    resultListOfCases = getcaseslist(fb, query)
+    listLength = str(len(resultListOfCases))
+    sheet.update_cell(row+2, col+1, str(listLength))
+
+
 
 def appendrowfordata(sheet):
     sheet.insert_row([], dataRowStartIndex)
 
 
 def main():
+    print("Started the program... ")
+    print(str(datetime.now().strftime(FORMAT_OF_DATE)))
+    start = time.time()
     sheets = initgooglesheets()
 
     # Fogbugz stuff
@@ -146,7 +183,7 @@ def main():
     listLength = str(len(resultListOfCases))
 
     # Calling all the information gathering functions
-    writeoldestcases(sheets, resultListOfCases, 3, 15)
+    # writeoldestcases(sheets, resultListOfCases, 3, 15)
     writefiltercount(True, sheets, datetime.now(), listLength, 10, 15, 0)
     print('Pro filter query finished')
     # ----------------------------------------------------------------------------------------------------------
@@ -161,20 +198,37 @@ def main():
     writeoldestcasenoupdateage(sheets, oldestCaseDate, 10, 22, 30)
     print('Oldest resolved cases without an update query finished')
     # ----------------------------------------------------------------------------------------------------------
+    writecrashnoncrashteams(sheets, fb, 3, 30)
     # ----------------------------------------------------------------------------------------------------------
     # ----------------------------------------------------------------------------------------------------------
 
     print('Data writing to Sheets finished')
-    print("Good to go")
+    end = time.time()
+    print('Finished program. Time spent: ' + str(end-start))
+    print(str(datetime.now().strftime(FORMAT_OF_DATE)))
 
 
 CONST_DATE_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 FORMAT_OF_DATE = '%Y-%m-%d %H:%M:%S'
 dataRowStartIndex = 10
+sleeptime = 300
+crashed = False
 
+
+#while True:
+#    try:
+#        main()
+#    except:
+#        crashed = True
+#        sleeptime = 30
+#       print(str(datetime.now().strftime(FORMAT_OF_DATE)))
+#        print("Fogbugz not working or internet down")
+#        print("SleepTime" + str(sleeptime))
+#    if crashed:
+#        print("SleepTime" + str(sleeptime))
+#        crashed = False
+#    time.sleep(sleeptime)
+#    sleeptime = 300
 main()
-
-
-
 
 
