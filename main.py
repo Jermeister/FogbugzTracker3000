@@ -19,7 +19,7 @@ def initgooglesheets():
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     creds = ServiceAccountCredentials.from_json_keyfile_name('client_secret.json', scope)
     client = gspread.authorize(creds)
-    sheet = client.open("General Kaunas People Stats").get_worksheet(1)
+    sheet = client.open("General Kaunas Stats").get_worksheet(1)
     return sheet
 
 
